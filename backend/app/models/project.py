@@ -1,0 +1,25 @@
+from datetime import datetime
+
+from sqlalchemy import DateTime, Integer, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.core.database import Base
+
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    project_path: Mapped[str] = mapped_column(Text, nullable=False)
+    service_base_url: Mapped[str] = mapped_column(Text, nullable=False)
+    openapi_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    database_type: Mapped[str] = mapped_column(String(30), nullable=False, default="none")
+    database_config_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    auth_config_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
