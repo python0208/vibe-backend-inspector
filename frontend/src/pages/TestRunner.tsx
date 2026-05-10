@@ -1,10 +1,11 @@
 import { AlertTriangle, Clock3, Code2, Play, ShieldCheck, XCircle } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 import { analyzeAITestPlan, executeAITestStep, generateAITestPlan, listAITestPlans } from "../api/aiTests";
 import { listEndpoints } from "../api/endpoints";
 import { listLLMConfigs } from "../api/llm";
-import { listTestRuns, runEndpointTest } from "../api/tests";
+import { getTestRun, listTestRuns, runEndpointTest } from "../api/tests";
+import { createValidationRun, getValidationRun, listValidationRuns } from "../api/validationRuns";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { StatCard } from "../components/ui/StatCard";
@@ -16,6 +17,7 @@ import type { LLMConfig } from "../types/llm";
 import type { PageKey } from "../types/navigation";
 import type { ProjectListItem } from "../types/project";
 import type { DbChanges, TestRequestPayload, TestRun } from "../types/tests";
+import type { ValidationRun, ValidationRunDetail, ValidationRunItem } from "../types/validation";
 
 interface KeyValueRow {
   id: string;
@@ -48,6 +50,14 @@ export function TestRunner({
   const [bearerToken, setBearerToken] = useState("");
   const [bodyText, setBodyText] = useState("{}");
   const [testRuns, setTestRuns] = useState<TestRun[]>([]);
+  const [validationRuns, setValidationRuns] = useState<ValidationRun[]>([]);
+  const [activeValidationRun, setActiveValidationRun] = useState<ValidationRunDetail | null>(null);
+  const [validationScope, setValidationScope] = useState<"all" | "selected">("all");
+  const [validationName, setValidationName] = useState("Validation Run");
+  const [validationIncludePost, setValidationIncludePost] = useState(true);
+  const [validationIncludeDestructive, setValidationIncludeDestructive] = useState(false);
+  const [validationSkipDestructive, setValidationSkipDestructive] = useState(true);
+  const [validationMaxEndpoints, setValidationMaxEndpoints] = useState(50);
   const [latestRun, setLatestRun] = useState<TestRun | null>(null);
   const [llmConfigs, setLlmConfigs] = useState<LLMConfig[]>([]);
   const [selectedLlmConfigId, setSelectedLlmConfigId] = useState<number | null>(null);
@@ -55,6 +65,7 @@ export function TestRunner({
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [aiLog, setAiLog] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [validationLoading, setValidationLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,6 +90,8 @@ export function TestRunner({
       setEndpoints([]);
       setTestRuns([]);
       setLatestRun(null);
+      setValidationRuns([]);
+      setActiveValidationRun(null);
       return;
     }
     setLoading(true);
@@ -88,8 +101,14 @@ export function TestRunner({
         listEndpoints(projectId),
         listTestRuns(projectId)
       ]);
+      const validationData = await listValidationRuns(projectId);
       setEndpoints(endpointData);
       setTestRuns(runData);
+      setValidationRuns(validationData);
+      if (!activeValidationRun && validationData[0]) {
+        const detail = await getValidationRun(projectId, validationData[0].id);
+        setActiveValidationRun(detail);
+      }
       setLatestRun((current) => current ?? runData[0] ?? null);
       setSelectedEndpointId((current) => {
         if (initialEndpointId && endpointData.some((endpoint) => endpoint.id === initialEndpointId)) {
@@ -104,6 +123,8 @@ export function TestRunner({
       setError(exc instanceof Error ? exc.message : t.testRunner.loadFailed);
       setEndpoints([]);
       setTestRuns([]);
+      setValidationRuns([]);
+      setActiveValidationRun(null);
     } finally {
       setLoading(false);
     }
@@ -195,6 +216,64 @@ export function TestRunner({
       setError(exc instanceof Error ? exc.message : t.testRunner.runFailed);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function runValidation() {
+    if (!selectedProjectId) return;
+    if (validationIncludeDestructive || !validationSkipDestructive) {
+      const confirmed = window.confirm(t.testRunner.destructiveValidationConfirm);
+      if (!confirmed) return;
+    }
+    setValidationLoading(true);
+    setError(null);
+    try {
+      const result = await createValidationRun(selectedProjectId, {
+        name: validationName || null,
+        endpoint_ids: validationScope === "selected" && selectedEndpointId ? [selectedEndpointId] : [],
+        methods: [],
+        skip_destructive: validationSkipDestructive,
+        include_get: true,
+        include_post: validationIncludePost,
+        include_put_patch_delete: validationIncludeDestructive,
+        use_ai_generated_params: false,
+        max_endpoints: validationMaxEndpoints
+      });
+      setActiveValidationRun(result);
+      const [runs, testRunData] = await Promise.all([
+        listValidationRuns(selectedProjectId),
+        listTestRuns(selectedProjectId)
+      ]);
+      setValidationRuns(runs);
+      setTestRuns(testRunData);
+      setLatestRun(testRunData[0] ?? latestRun);
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : t.testRunner.validationLoadFailed);
+    } finally {
+      setValidationLoading(false);
+    }
+  }
+
+  async function loadValidationRun(runId: number) {
+    if (!selectedProjectId) return;
+    setValidationLoading(true);
+    setError(null);
+    try {
+      setActiveValidationRun(await getValidationRun(selectedProjectId, runId));
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : t.testRunner.validationLoadFailed);
+    } finally {
+      setValidationLoading(false);
+    }
+  }
+
+  async function viewValidationTestRun(item: ValidationRunItem) {
+    if (!selectedProjectId || !item.test_run_id) return;
+    try {
+      const run = await getTestRun(selectedProjectId, item.test_run_id);
+      setLatestRun(run);
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : t.testRunner.loadFailed);
     }
   }
 
@@ -309,6 +388,30 @@ export function TestRunner({
         <StatCard icon={Clock3} title={t.testRunner.avgResponseTime} value={avgResponseTime} hint={t.testRunner.recentRuns} tone="blue" />
         <StatCard icon={Code2} title={t.testRunner.availableEndpoints} value={endpoints.length} hint={selectedProject.name} tone="purple" />
       </div>
+
+      <ValidationRunPanel
+        activeRun={activeValidationRun}
+        endpoints={endpoints}
+        includeDestructive={validationIncludeDestructive}
+        includePost={validationIncludePost}
+        loading={validationLoading}
+        maxEndpoints={validationMaxEndpoints}
+        name={validationName}
+        onIncludeDestructiveChange={setValidationIncludeDestructive}
+        onIncludePostChange={setValidationIncludePost}
+        onLoadRun={(runId) => void loadValidationRun(runId)}
+        onMaxEndpointsChange={setValidationMaxEndpoints}
+        onNameChange={setValidationName}
+        onRun={() => void runValidation()}
+        onScopeChange={setValidationScope}
+        onSkipDestructiveChange={setValidationSkipDestructive}
+        onViewTestRun={(item) => void viewValidationTestRun(item)}
+        runs={validationRuns}
+        scope={validationScope}
+        selectedEndpointId={selectedEndpointId}
+        skipDestructive={validationSkipDestructive}
+        t={t}
+      />
 
       <AISmartTestPanel
         aiLoading={aiLoading}
@@ -466,6 +569,252 @@ export function TestRunner({
         )}
       </Card>
     </section>
+  );
+}
+
+function ValidationRunPanel({
+  activeRun,
+  endpoints,
+  includeDestructive,
+  includePost,
+  loading,
+  maxEndpoints,
+  name,
+  onIncludeDestructiveChange,
+  onIncludePostChange,
+  onLoadRun,
+  onMaxEndpointsChange,
+  onNameChange,
+  onRun,
+  onScopeChange,
+  onSkipDestructiveChange,
+  onViewTestRun,
+  runs,
+  scope,
+  selectedEndpointId,
+  skipDestructive,
+  t
+}: {
+  activeRun: ValidationRunDetail | null;
+  endpoints: Endpoint[];
+  includeDestructive: boolean;
+  includePost: boolean;
+  loading: boolean;
+  maxEndpoints: number;
+  name: string;
+  onIncludeDestructiveChange: (value: boolean) => void;
+  onIncludePostChange: (value: boolean) => void;
+  onLoadRun: (runId: number) => void;
+  onMaxEndpointsChange: (value: number) => void;
+  onNameChange: (value: string) => void;
+  onRun: () => void;
+  onScopeChange: (value: "all" | "selected") => void;
+  onSkipDestructiveChange: (value: boolean) => void;
+  onViewTestRun: (item: ValidationRunItem) => void;
+  runs: ValidationRun[];
+  scope: "all" | "selected";
+  selectedEndpointId: number | null;
+  skipDestructive: boolean;
+  t: Messages;
+}) {
+  const [expandedItemIds, setExpandedItemIds] = useState<Set<number>>(new Set());
+  const passRate = activeRun?.summary?.pass_rate;
+  const passRateText = typeof passRate === "number" ? `${passRate}%` : activeRun?.total_count ? `${Math.round((activeRun.passed_count / activeRun.total_count) * 100)}%` : "0%";
+  const toggleItem = (itemId: number) => {
+    setExpandedItemIds((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
+  return (
+    <Card className="validation-panel">
+      <div className="card-heading">
+        <div>
+          <h2>{t.testRunner.validationRun}</h2>
+          <p>{t.testRunner.validationSubtitle}</p>
+        </div>
+        <StatusBadge tone={activeRun ? statusTone(activeRun.status) : "neutral"}>{activeRun?.status ?? t.common.idle}</StatusBadge>
+      </div>
+
+      <div className="notice info validation-explainer">
+        <span>{t.testRunner.validationHowItWorks}</span>
+      </div>
+
+      <div className="validation-config-grid">
+        <label className="form-field">
+          {t.testRunner.validationName}
+          <input value={name} onChange={(event) => onNameChange(event.target.value)} />
+        </label>
+        <label className="form-field">
+          {t.testRunner.validationScope}
+          <select value={scope} onChange={(event) => onScopeChange(event.target.value as "all" | "selected")}>
+            <option value="all">{t.testRunner.allEndpoints}</option>
+            <option value="selected" disabled={!selectedEndpointId}>{t.testRunner.selectedEndpoint}</option>
+          </select>
+        </label>
+        <label className="form-field">
+          {t.testRunner.maxEndpoints}
+          <input
+            min={1}
+            max={100}
+            onChange={(event) => onMaxEndpointsChange(Number(event.target.value) || 1)}
+            type="number"
+            value={maxEndpoints}
+          />
+        </label>
+      </div>
+
+      <div className="validation-option-row">
+        <label className="checkbox-row">
+          <input checked={skipDestructive} onChange={(event) => onSkipDestructiveChange(event.target.checked)} type="checkbox" />
+          <span>{t.testRunner.skipDestructive}</span>
+        </label>
+        <label className="checkbox-row">
+          <input checked={includePost} onChange={(event) => onIncludePostChange(event.target.checked)} type="checkbox" />
+          <span>{t.testRunner.includePost}</span>
+        </label>
+        <label className="checkbox-row">
+          <input checked={includeDestructive} onChange={(event) => onIncludeDestructiveChange(event.target.checked)} type="checkbox" />
+          <span>{t.testRunner.includeDestructive}</span>
+        </label>
+        <button className="primary-button" disabled={loading || endpoints.length === 0} onClick={onRun} type="button">
+          <Play size={17} />
+          {loading ? t.common.checking : t.testRunner.runValidation}
+        </button>
+      </div>
+
+      {activeRun ? (
+        <>
+          <div className="validation-summary-grid">
+            <div><span>{t.testRunner.total}</span><strong>{activeRun.total_count}</strong></div>
+            <div><span>{t.testRunner.passed}</span><strong>{activeRun.passed_count}</strong></div>
+            <div><span>{t.testRunner.failed}</span><strong>{activeRun.failed_count}</strong></div>
+            <div><span>{t.testRunner.skipped}</span><strong>{activeRun.skipped_count}</strong></div>
+            <div><span>{t.testRunner.warnings}</span><strong>{activeRun.warning_count}</strong></div>
+            <div><span>{t.reports.passRate}</span><strong>{passRateText}</strong></div>
+          </div>
+
+          <div className="card-heading compact-heading">
+            <h3>{t.testRunner.validationItems}</h3>
+            <StatusBadge tone="neutral">{activeRun.items.length}</StatusBadge>
+          </div>
+          <table className="data-table validation-table">
+            <thead>
+              <tr>
+                <th>{t.apiMap.method}</th>
+                <th>{t.apiMap.path}</th>
+                <th>{t.apiMap.testStatus}</th>
+                <th>{t.apiMap.lastStatus}</th>
+                <th>{t.apiMap.latency}</th>
+                <th>{t.testRunner.failureCategory}</th>
+                <th>{t.testRunner.dbChangeSummary}</th>
+                <th>{t.apiMap.actions}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeRun.items.map((item) => (
+                <Fragment key={item.id}>
+                  <tr>
+                    <td><StatusBadge tone={methodTone(item.method)}>{item.method}</StatusBadge></td>
+                    <td>{item.path}</td>
+                    <td><StatusBadge tone={statusTone(item.status)}>{item.status}</StatusBadge></td>
+                    <td>{item.http_status ?? "-"}</td>
+                    <td>{item.response_time_ms != null ? `${item.response_time_ms} ms` : "-"}</td>
+                    <td>
+                      {item.failure_category ? (
+                        <StatusBadge tone={failureTone(item.failure_category)}>
+                          {failureLabel(item.failure_category, t)}
+                        </StatusBadge>
+                      ) : "-"}
+                    </td>
+                    <td>{item.db_change_status ?? item.error_message ?? "-"}</td>
+                    <td>
+                      <div className="button-row compact-actions">
+                        <button className="outline-button compact" onClick={() => toggleItem(item.id)} type="button">
+                          {expandedItemIds.has(item.id) ? t.testRunner.collapseDetails : t.testRunner.expandDetails}
+                        </button>
+                        <button
+                          className="outline-button compact"
+                          disabled={!item.test_run_id}
+                          onClick={() => onViewTestRun(item)}
+                          type="button"
+                        >
+                          {t.testRunner.viewTestRun}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedItemIds.has(item.id) ? (
+                    <tr className="validation-detail-row">
+                      <td colSpan={8}>
+                        <ValidationItemDetail item={item} t={t} />
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </>
+      ) : (
+        <div className="empty-panel compact">{t.testRunner.noValidationRuns}</div>
+      )}
+
+      <div className="card-heading compact-heading">
+        <h3>{t.testRunner.validationHistory}</h3>
+        <StatusBadge tone="neutral">{runs.length}</StatusBadge>
+      </div>
+      {runs.length ? (
+        <div className="validation-history-row">
+          {runs.map((run) => (
+            <button
+              className={activeRun?.id === run.id ? "validation-run-chip active" : "validation-run-chip"}
+              key={run.id}
+              onClick={() => onLoadRun(run.id)}
+              type="button"
+            >
+              <strong>{run.name}</strong>
+              <span>{run.passed_count}/{run.total_count} {run.status}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function ValidationItemDetail({ item, t }: { item: ValidationRunItem; t: Messages }) {
+  return (
+    <div className="validation-item-detail">
+      <div className="validation-detail-summary">
+        <div>
+          <span>{t.testRunner.failureCategory}</span>
+          <strong>{item.failure_category ? failureLabel(item.failure_category, t) : "-"}</strong>
+        </div>
+        <div>
+          <span>{t.testRunner.failureReason}</span>
+          <strong>{item.failure_reason ?? item.error_message ?? "-"}</strong>
+        </div>
+        <div>
+          <span>{t.testRunner.suggestion}</span>
+          <strong>{item.suggestion ?? "-"}</strong>
+        </div>
+      </div>
+      <div className="validation-detail-grid">
+        <DeveloperDataBlock title={t.testRunner.pathParamsGenerated} value={item.request_path_params} />
+        <DeveloperDataBlock title={t.testRunner.queryParamsGenerated} value={item.request_query_params} />
+        <DeveloperDataBlock title={t.testRunner.headersGenerated} value={item.request_headers} />
+        <DeveloperDataBlock title={t.testRunner.bodyGenerated} value={item.request_body} />
+        <DeveloperDataBlock title={t.testRunner.responseSummary} value={item.response_body_summary} />
+        <DeveloperDataBlock title={t.testRunner.databaseChanges} value={item.db_changes} />
+      </div>
+    </div>
   );
 }
 
@@ -1122,7 +1471,37 @@ function statusTone(status: string): StatusTone {
   if (status === "passed") return "success";
   if (status === "failed") return "danger";
   if (status === "skipped") return "warning";
+  if (status === "running") return "info";
   return "neutral";
+}
+
+function failureTone(category: string): StatusTone {
+  if (category === "server_error" || category === "permission_denied" || category === "network_error") return "danger";
+  if (
+    category === "validation_error" ||
+    category === "auth_required" ||
+    category === "not_found" ||
+    category === "needs_user_input" ||
+    category === "skipped_safety"
+  ) {
+    return "warning";
+  }
+  return "neutral";
+}
+
+function failureLabel(category: string, t: Messages): string {
+  const labels: Record<string, string> = {
+    validation_error: t.testRunner.categoryValidationError,
+    auth_required: t.testRunner.categoryAuthRequired,
+    permission_denied: t.testRunner.categoryPermissionDenied,
+    not_found: t.testRunner.categoryNotFound,
+    server_error: t.testRunner.categoryServerError,
+    skipped_safety: t.testRunner.categorySkippedSafety,
+    needs_user_input: t.testRunner.categoryNeedsUserInput,
+    network_error: t.testRunner.categoryNetworkError,
+    unknown: t.testRunner.categoryUnknown
+  };
+  return labels[category] ?? t.testRunner.categoryUnknown;
 }
 
 function riskTone(risk: string): StatusTone {

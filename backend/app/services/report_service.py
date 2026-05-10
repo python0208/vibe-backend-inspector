@@ -11,6 +11,7 @@ from app.models.api_endpoint import ApiEndpoint
 from app.models.project import Project
 from app.models.report import Report
 from app.models.test_run import TestRun
+from app.models.validation_run import ValidationRun
 from app.schemas.ai_test import AITestPlan
 from app.schemas.report import (
     AITestSummary,
@@ -25,6 +26,7 @@ from app.schemas.report import (
     ReportSummaryRead,
     RowCountAggregate,
     TestSummary,
+    ValidationRunSummary,
 )
 from app.services.endpoint_service import EndpointService
 from app.services.project_service import ProjectService
@@ -51,6 +53,7 @@ class ReportService:
         test_summary = self._build_test_summary(runs, recent_runs, endpoint_by_id)
         database_summary = self._build_database_summary(runs)
         ai_summary = self._build_ai_summary(project_id)
+        validation_summary = self._build_validation_summary(project_id)
         issue_list = self._build_issues(runs, endpoint_by_id, database_summary, ai_summary)
         recommendation_list = self._build_recommendations(
             endpoint_summary,
@@ -73,6 +76,7 @@ class ReportService:
             test_summary=test_summary,
             database_change_summary=database_summary,
             ai_test_summary=ai_summary,
+            validation_run_summary=validation_summary,
             issue_list=issue_list,
             recommendation_list=recommendation_list,
         )
@@ -89,6 +93,7 @@ class ReportService:
             test_summary_json=summary.test_summary.model_dump_json(),
             database_change_summary_json=summary.database_change_summary.model_dump_json(),
             ai_test_summary_json=summary.ai_test_summary.model_dump_json(),
+            validation_run_summary_json=summary.validation_run_summary.model_dump_json(),
             issue_list_json=json.dumps([issue.model_dump(mode="json") for issue in summary.issue_list]),
             recommendation_list_json=json.dumps(
                 [recommendation.model_dump(mode="json") for recommendation in summary.recommendation_list]
@@ -140,6 +145,9 @@ class ReportService:
                 self._loads(report.database_change_summary_json, {})
             ),
             ai_test_summary=AITestSummary.model_validate(self._loads(report.ai_test_summary_json, {})),
+            validation_run_summary=ValidationRunSummary.model_validate(
+                self._loads(getattr(report, "validation_run_summary_json", "{}"), {})
+            ),
             issue_list=[
                 ReportIssue.model_validate(item)
                 for item in self._loads(report.issue_list_json, [])
@@ -323,6 +331,33 @@ class ReportService:
             needs_input_steps=self._count_needs_input_steps(plans),
             analysis_summary=analysis_summary,
             risk_levels=dict(risk_counts),
+        )
+
+    def _build_validation_summary(self, project_id: int) -> ValidationRunSummary:
+        run = (
+            self.db.query(ValidationRun)
+            .filter(ValidationRun.project_id == project_id)
+            .order_by(ValidationRun.created_at.desc(), ValidationRun.id.desc())
+            .first()
+        )
+        if not run:
+            return ValidationRunSummary()
+        summary = self._loads(run.summary_json, {})
+        pass_rate = summary.get("pass_rate") if isinstance(summary, dict) else None
+        if pass_rate is None and run.total_count:
+            pass_rate = round((run.passed_count / run.total_count) * 100, 1)
+        return ValidationRunSummary(
+            latest_run_id=run.id,
+            name=run.name,
+            status=run.status,
+            total_count=run.total_count,
+            passed_count=run.passed_count,
+            failed_count=run.failed_count,
+            skipped_count=run.skipped_count,
+            warning_count=run.warning_count,
+            pass_rate=float(pass_rate or 0),
+            started_at=run.started_at,
+            finished_at=run.finished_at,
         )
 
     def _build_issues(
@@ -581,6 +616,7 @@ class ReportService:
         tests = summary.test_summary
         database = summary.database_change_summary
         ai = summary.ai_test_summary
+        validation = summary.validation_run_summary
         lines = [
             f"# {summary.title}",
             "",
@@ -603,6 +639,14 @@ class ReportService:
             f"- Average response time: {tests.average_response_time_ms or 0} ms",
             f"- 422 validation errors: {tests.validation_error_count}",
             f"- 5xx server errors: {tests.server_error_count}",
+            "",
+            "## Validation Run Summary",
+            "",
+            f"- Latest run: {validation.name or '-'}",
+            f"- Status: {validation.status or '-'}",
+            f"- Total endpoints: {validation.total_count}",
+            f"- Passed / failed / skipped: {validation.passed_count} / {validation.failed_count} / {validation.skipped_count}",
+            f"- Pass rate: {validation.pass_rate}%",
             "",
             "## Failed Endpoints",
             "",

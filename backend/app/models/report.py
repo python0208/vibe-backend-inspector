@@ -18,6 +18,7 @@ class Report(Base):
     test_summary_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     database_change_summary_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     ai_test_summary_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    validation_run_summary_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     issue_list_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     recommendation_list_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     markdown_content: Mapped[str] = mapped_column(Text, nullable=False)

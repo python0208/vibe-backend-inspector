@@ -1,8 +1,10 @@
+import json
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin
 
 import httpx
+import yaml
 from sqlalchemy.orm import Session
 
 from app.schemas.connection import OpenApiTestResponse
@@ -18,6 +20,8 @@ COMMON_OPENAPI_PATHS = [
     "/api-docs",
     "/docs-json",
 ]
+MAX_OPENAPI_FILE_BYTES = 2 * 1024 * 1024
+OPENAPI_FILE_EXTENSIONS = {".json", ".yaml", ".yml"}
 
 
 @dataclass
@@ -25,6 +29,13 @@ class FetchedOpenApiDocument:
     url: str
     payload: dict[str, Any]
     detected_format: str
+
+
+class OpenApiFileImportError(ValueError):
+    def __init__(self, message: str, status_code: int = 400) -> None:
+        self.message = message
+        self.status_code = status_code
+        super().__init__(message)
 
 
 class OpenApiService:
@@ -141,6 +152,68 @@ class OpenApiService:
             attempted_urls=attempted_urls,
         )
 
+    def import_document_file(
+        self,
+        project: Project,
+        filename: str,
+        content: bytes,
+    ) -> OpenApiDiscoveryResponse:
+        if not self.db:
+            raise RuntimeError("Database session is required for discovery.")
+
+        document = self.parse_uploaded_document(filename, content)
+        payloads = self.parse_endpoints(document.payload, source="openapi_file")
+        if not payloads:
+            raise OpenApiFileImportError("OpenAPI document does not contain supported endpoints.")
+
+        created, updated, _ = EndpointService(self.db).upsert_endpoints(project.id, payloads)
+        return OpenApiDiscoveryResponse(
+            ok=True,
+            message="OpenAPI file imported.",
+            project_id=project.id,
+            total_endpoints=len(payloads),
+            created=created,
+            updated=updated,
+        )
+
+    def parse_uploaded_document(self, filename: str, content: bytes) -> FetchedOpenApiDocument:
+        if len(content) > MAX_OPENAPI_FILE_BYTES:
+            raise OpenApiFileImportError("OpenAPI file is too large.", status_code=413)
+        if not content or not content.strip():
+            raise OpenApiFileImportError("OpenAPI file is empty.")
+
+        extension = self._file_extension(filename)
+        if extension not in OPENAPI_FILE_EXTENSIONS:
+            raise OpenApiFileImportError("Only JSON, YAML, or YML OpenAPI files are supported.")
+
+        try:
+            text = content.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise OpenApiFileImportError("OpenAPI file must be UTF-8 encoded.") from exc
+
+        try:
+            if extension == ".json":
+                payload = json.loads(text)
+            else:
+                payload = yaml.safe_load(text)
+        except json.JSONDecodeError as exc:
+            raise OpenApiFileImportError(f"OpenAPI JSON format error: {exc.msg}.") from exc
+        except yaml.YAMLError as exc:
+            raise OpenApiFileImportError(f"OpenAPI YAML format error: {exc.__class__.__name__}.") from exc
+
+        if not isinstance(payload, dict):
+            raise OpenApiFileImportError("OpenAPI document must be a JSON/YAML object.")
+
+        detected_format = self._detect_format(payload)
+        if not detected_format:
+            raise OpenApiFileImportError("Unsupported OpenAPI structure.")
+
+        paths = payload.get("paths")
+        if not isinstance(paths, dict) or not paths:
+            raise OpenApiFileImportError("OpenAPI document is missing paths.")
+
+        return FetchedOpenApiDocument(url=filename, payload=payload, detected_format=detected_format)
+
     def parse_endpoints(self, document: dict[str, Any], source: str = "openapi") -> list[EndpointUpsertPayload]:
         paths = document.get("paths")
         if not isinstance(paths, dict):
@@ -203,6 +276,22 @@ class OpenApiService:
             created=created,
             updated=updated,
         )
+
+    @staticmethod
+    def _detect_format(payload: dict[str, Any]) -> str | None:
+        if "openapi" in payload:
+            return "openapi"
+        if "swagger" in payload:
+            return "swagger"
+        return None
+
+    @staticmethod
+    def _file_extension(filename: str) -> str:
+        lowered = filename.lower().strip()
+        for extension in OPENAPI_FILE_EXTENSIONS:
+            if lowered.endswith(extension):
+                return extension
+        return ""
 
     @staticmethod
     def _join_url(base_url: str, path: str) -> str:

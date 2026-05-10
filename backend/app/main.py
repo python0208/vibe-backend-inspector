@@ -4,7 +4,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.database import init_db
 from app.core.logging import configure_logging
-from app.routers import ai_tests, connection_tests, database, health, llm, openapi, projects, reports, tests
+from app.routers import (
+    ai_tests,
+    connection_tests,
+    database,
+    health,
+    llm,
+    openapi,
+    projects,
+    reports,
+    tests,
+    validation_runs,
+)
 
 
 def create_app() -> FastAPI:
@@ -29,6 +40,7 @@ def create_app() -> FastAPI:
     app.include_router(database.router)
     app.include_router(tests.router)
     app.include_router(reports.router)
+    app.include_router(validation_runs.router)
     app.include_router(llm.router)
     app.include_router(ai_tests.router)
     app.include_router(connection_tests.router)

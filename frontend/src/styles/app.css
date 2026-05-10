@@ -639,6 +639,11 @@ button {
   padding: 0;
 }
 
+.icon-only.danger {
+  border-color: #fecaca;
+  color: var(--danger);
+}
+
 .service-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -995,7 +1000,41 @@ textarea:focus {
 }
 
 .api-filters {
-  grid-template-columns: 190px 190px minmax(260px, 1fr);
+  grid-template-columns: 170px 170px 170px minmax(260px, 1fr);
+}
+
+.api-action-row,
+.file-import-row,
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.api-source-card .card-heading p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.file-import-row {
+  justify-content: stretch;
+  margin-top: 14px;
+}
+
+.file-import-row input {
+  flex: 1;
+  min-width: 240px;
+}
+
+.data-table td:last-child {
+  white-space: nowrap;
+}
+
+.data-table td:last-child .icon-only + .icon-only {
+  margin-left: 6px;
 }
 
 .data-table {
@@ -1084,6 +1123,196 @@ button:disabled {
   line-height: 1.6;
   white-space: pre;
   max-width: 100%;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.38);
+}
+
+.modal-panel {
+  width: min(860px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: white;
+  padding: 18px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+}
+
+.endpoint-modal {
+  display: grid;
+  gap: 16px;
+}
+
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.checkbox-row input {
+  width: 18px;
+  height: 18px;
+}
+
+.schema-textarea {
+  min-height: 168px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+}
+
+.validation-panel .card-heading p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.validation-explainer {
+  margin-top: 14px;
+}
+
+.validation-config-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(180px, 0.8fr) minmax(120px, 0.4fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.validation-option-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.validation-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.validation-summary-grid div {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.validation-summary-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.validation-summary-grid strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 20px;
+}
+
+.compact-heading {
+  margin-top: 16px;
+}
+
+.validation-table .outline-button {
+  min-height: 30px;
+}
+
+.compact-actions {
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.validation-detail-row td {
+  background: #f8fbff;
+  cursor: default;
+}
+
+.validation-item-detail {
+  display: grid;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.validation-detail-summary,
+.validation-detail-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.validation-detail-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.validation-detail-summary div {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: white;
+  padding: 12px;
+}
+
+.validation-detail-summary span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.validation-detail-summary strong {
+  display: block;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.validation-detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.validation-history-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.validation-run-chip {
+  display: grid;
+  gap: 3px;
+  min-width: 180px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: white;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.validation-run-chip.active,
+.validation-run-chip:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.validation-run-chip span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .database-grid {
@@ -2096,6 +2325,13 @@ button:disabled {
   .setup-two-columns,
   .step-rail,
   .filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .validation-config-grid,
+  .validation-summary-grid,
+  .validation-detail-summary,
+  .validation-detail-grid {
     grid-template-columns: 1fr;
   }
 

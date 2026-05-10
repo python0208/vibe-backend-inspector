@@ -4,6 +4,7 @@ from app.models.llm_config import LLMConfig
 from app.models.project import Project
 from app.models.report import Report
 from app.models.test_run import TestRun
+from app.models.validation_run import ValidationRun, ValidationRunItem
 
 __all__ = [
     "AITestPlanRecord",
@@ -13,4 +14,6 @@ __all__ = [
     "Project",
     "Report",
     "TestRun",
+    "ValidationRun",
+    "ValidationRunItem",
 ]

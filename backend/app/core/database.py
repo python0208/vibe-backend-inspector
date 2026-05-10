@@ -37,10 +37,19 @@ def init_db() -> None:
 
 def _ensure_compatible_columns() -> None:
     inspector = inspect(engine)
-    if "test_runs" not in inspector.get_table_names():
+    table_names = inspector.get_table_names()
+    if "test_runs" not in table_names:
         return
-    columns = {column["name"] for column in inspector.get_columns("test_runs")}
-    if "db_changes_json" in columns:
-        return
+    test_run_columns = {column["name"] for column in inspector.get_columns("test_runs")}
+    report_columns = (
+        {column["name"] for column in inspector.get_columns("reports")}
+        if "reports" in table_names
+        else set()
+    )
     with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE test_runs ADD COLUMN db_changes_json TEXT NOT NULL DEFAULT '{}'"))
+        if "db_changes_json" not in test_run_columns:
+            connection.execute(text("ALTER TABLE test_runs ADD COLUMN db_changes_json TEXT NOT NULL DEFAULT '{}'"))
+        if "reports" in table_names and "validation_run_summary_json" not in report_columns:
+            connection.execute(
+                text("ALTER TABLE reports ADD COLUMN validation_run_summary_json TEXT NOT NULL DEFAULT '{}'")
+            )

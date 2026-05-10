@@ -66,7 +66,12 @@ export function Reports({ t, projects, selectedProjectId, onNavigate }: ReportsP
   }, [selectedProjectId]);
 
   const hasEvidence = Boolean(
-    summary && (summary.endpoint_summary.total > 0 || summary.test_summary.total_runs > 0 || summary.ai_test_summary.plan_count > 0)
+    summary && (
+      summary.endpoint_summary.total > 0 ||
+      summary.test_summary.total_runs > 0 ||
+      summary.ai_test_summary.plan_count > 0 ||
+      summary.validation_run_summary.total_count > 0
+    )
   );
   const canExport = Boolean(selectedProjectId && latestReport);
 
@@ -191,6 +196,7 @@ export function Reports({ t, projects, selectedProjectId, onNavigate }: ReportsP
             <FailedEndpointsTable report={activeReport} t={t} />
             <DatabaseChangesPanel report={activeReport} t={t} />
             <AITestSummaryPanel report={activeReport} t={t} />
+            <ValidationRunSummaryPanel report={activeReport} t={t} />
             <RecommendationsPanel report={activeReport} t={t} />
           </div>
         </>
@@ -206,6 +212,7 @@ function ReportStats({ report, t }: { report: ReportSummary; t: Messages }) {
   const tests = report.test_summary;
   const database = report.database_change_summary;
   const ai = report.ai_test_summary;
+  const validation = report.validation_run_summary;
   return (
     <div className="stat-grid five">
       <StatCard icon={BarChart3} title={t.reports.endpointsTested} value={`${endpoints.tested}/${endpoints.total}`} hint={`${endpoints.pass_rate}%`} tone="blue" />
@@ -213,6 +220,7 @@ function ReportStats({ report, t }: { report: ReportSummary; t: Messages }) {
       <StatCard icon={XCircle} title={t.reports.failedCount} value={tests.failed_runs} hint={`${tests.server_error_count} 5xx / ${tests.validation_error_count} 422`} tone="red" />
       <StatCard icon={Database} title={t.reports.databaseChanges} value={database.changed_tables.length} hint={`${database.tests_with_db_changes} runs`} tone="purple" />
       <StatCard icon={Sparkles} title={t.reports.aiSmartSteps} value={ai.steps_total} hint={`${ai.steps_passed}/${ai.steps_failed}/${ai.steps_skipped}`} tone="orange" />
+      <StatCard icon={BarChart3} title={t.testRunner.validationRun} value={validation.total_count} hint={`${validation.pass_rate}%`} tone="blue" />
     </div>
   );
 }
@@ -305,6 +313,27 @@ function AITestSummaryPanel({ report, t }: { report: ReportSummary; t: Messages 
           <p>{ai.analysis_summary}</p>
         </div>
       ) : null}
+    </Card>
+  );
+}
+
+function ValidationRunSummaryPanel({ report, t }: { report: ReportSummary; t: Messages }) {
+  const validation = report.validation_run_summary;
+  return (
+    <Card className="report-panel">
+      <SectionHeading count={validation.total_count} title={t.testRunner.validationRun} />
+      {validation.latest_run_id ? (
+        <div className="report-ai-grid">
+          <div><span>{t.testRunner.total}</span><strong>{validation.total_count}</strong></div>
+          <div><span>{t.testRunner.passed}</span><strong>{validation.passed_count}</strong></div>
+          <div><span>{t.testRunner.failed}</span><strong>{validation.failed_count}</strong></div>
+          <div><span>{t.testRunner.skipped}</span><strong>{validation.skipped_count}</strong></div>
+          <div><span>{t.reports.passRate}</span><strong>{validation.pass_rate}%</strong></div>
+          <div><span>{t.apiMap.testStatus}</span><strong>{validation.status ?? "-"}</strong></div>
+        </div>
+      ) : (
+        <div className="empty-panel compact">{t.testRunner.noValidationRuns}</div>
+      )}
     </Card>
   );
 }

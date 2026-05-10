@@ -2,7 +2,7 @@
 
 Vibe Backend Inspector is a local dashboard and agent for inspecting backend projects created during AI-assisted development.
 
-Current stage: Phase 8.
+Current stage: Phase 10.
 
 ## Implemented
 
@@ -22,6 +22,9 @@ Current stage: Phase 8.
 - Test run history stored in the tool's local SQLite database.
 - Acceptance reports generated from real endpoint state, test runs, database changes, and AI smart test results.
 - Markdown report export.
+- OpenAPI JSON / YAML file import for offline API documents.
+- Manual endpoint creation, editing, and deletion from API Map.
+- Validation Runs for conservative batch endpoint verification.
 - Prototype-aligned dashboard layout with Sidebar, TopHeader, cards, and bilingual Chinese / English UI.
 
 ## Not Implemented Yet
@@ -85,6 +88,37 @@ GET  /api/projects/{project_id}/reports/{report_id}/markdown
 ```
 
 Open Reports, select a project, run endpoint tests or AI Smart Tests if there is not enough evidence yet, then click "Generate Report". The generated report is saved in the tool's local SQLite database and can be exported as Markdown. PDF export is intentionally not implemented in this phase.
+
+## Phase 9 Endpoint Sources
+
+API Map now supports three endpoint sources: synced OpenAPI URL documents, imported OpenAPI files, and manual endpoints. Imported file endpoints and manual endpoints are saved into the same local SQLite endpoint table, so they are available to Test Runner, AI Smart Testing, and Reports.
+
+Endpoint source APIs:
+
+```text
+POST   /api/projects/{project_id}/openapi/import-file
+POST   /api/projects/{project_id}/endpoints
+PUT    /api/projects/{project_id}/endpoints/{endpoint_id}
+DELETE /api/projects/{project_id}/endpoints/{endpoint_id}
+```
+
+OpenAPI file import accepts `.json`, `.yaml`, and `.yml` files. The backend parses the uploaded document, saves discovered endpoints, and does not store the raw uploaded file. Manual endpoints require a method and a path beginning with `/`; the first UI version captures summary, description, tags, auth requirement, request schema, and response schema.
+
+## Phase 10 Validation Runs
+
+The Test Runner page now includes a Validation Run panel for conservative batch endpoint checks. A validation run can target all endpoints or the currently selected endpoint, includes GET by default, can include POST, and skips PUT/PATCH/DELETE unless explicitly enabled and confirmed in the UI.
+
+Validation APIs:
+
+```text
+POST /api/projects/{project_id}/validation-runs
+GET  /api/projects/{project_id}/validation-runs
+GET  /api/projects/{project_id}/validation-runs/{run_id}
+GET  /api/projects/{project_id}/validation-runs/{run_id}/items
+POST /api/projects/{project_id}/validation-runs/{run_id}/cancel
+```
+
+Each executable item reuses the single endpoint Test Runner service, so status, response time, response body truncation, secret masking, test run history, and `db_changes` behavior stay consistent. Reports include the latest validation run summary in both the page summary and Markdown export.
 
 ## Backend Setup
 

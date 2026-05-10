@@ -1,5 +1,6 @@
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD";
 export type TestStatus = "untested" | "passed" | "failed" | "skipped";
+export type EndpointSource = "openapi" | "swagger" | "openapi_url" | "openapi_file" | "manual";
 
 export interface Endpoint {
   id: number;
@@ -15,7 +16,7 @@ export interface Endpoint {
   request_body_schema: Record<string, unknown>;
   response_schema: Record<string, unknown>;
   auth_required: boolean;
-  source: string;
+  source: EndpointSource | string;
   test_status: TestStatus | string;
   last_status_code?: number | null;
   last_response_time_ms?: number | null;
@@ -32,4 +33,23 @@ export interface EndpointDiscoveryResult {
   created: number;
   updated: number;
   attempted_urls: string[];
+}
+
+export interface EndpointMutationPayload {
+  method: HttpMethod;
+  path: string;
+  summary?: string | null;
+  description?: string | null;
+  operation_id?: string | null;
+  tags: string[];
+  query_params: Record<string, unknown>[];
+  path_params: Record<string, unknown>[];
+  request_body_schema: Record<string, unknown>;
+  response_schema: Record<string, unknown>;
+  auth_required: boolean;
+}
+
+export interface EndpointDeleteResult {
+  ok: boolean;
+  message: string;
 }

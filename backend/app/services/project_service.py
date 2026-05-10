@@ -8,6 +8,7 @@ from app.models.ai_test_plan import AITestPlanRecord, AITestStepRecord
 from app.models.api_endpoint import ApiEndpoint
 from app.models.project import Project
 from app.models.test_run import TestRun
+from app.models.validation_run import ValidationRun, ValidationRunItem
 from app.schemas.project import AuthConfig, ProjectCreate, ProjectRead, ProjectUpdate
 from app.utils.security import mask_secrets
 
@@ -73,6 +74,8 @@ class ProjectService:
 
     def delete_project(self, project_id: int) -> None:
         project = self.get_project(project_id)
+        self.db.query(ValidationRunItem).filter(ValidationRunItem.project_id == project_id).delete()
+        self.db.query(ValidationRun).filter(ValidationRun.project_id == project_id).delete()
         self.db.query(AITestStepRecord).filter(AITestStepRecord.project_id == project_id).delete()
         self.db.query(AITestPlanRecord).filter(AITestPlanRecord.project_id == project_id).delete()
         self.db.query(TestRun).filter(TestRun.project_id == project_id).delete()

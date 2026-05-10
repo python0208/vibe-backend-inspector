@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
-EndpointSource = Literal["openapi", "swagger"]
+EndpointSource = Literal["openapi", "swagger", "openapi_url", "openapi_file", "manual"]
 TestStatus = Literal["untested", "passed", "failed", "skipped"]
 
 
@@ -47,6 +47,39 @@ class EndpointUpsertPayload(BaseModel):
     response_schema: dict[str, Any] = Field(default_factory=dict)
     auth_required: bool = False
     source: str = "openapi"
+
+
+class EndpointCreate(BaseModel):
+    method: HttpMethod
+    path: str
+    summary: str | None = None
+    description: str | None = None
+    operation_id: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    query_params: list[dict[str, Any]] = Field(default_factory=list)
+    path_params: list[dict[str, Any]] = Field(default_factory=list)
+    request_body_schema: dict[str, Any] = Field(default_factory=dict)
+    response_schema: dict[str, Any] = Field(default_factory=dict)
+    auth_required: bool = False
+
+
+class EndpointUpdate(BaseModel):
+    method: HttpMethod
+    path: str
+    summary: str | None = None
+    description: str | None = None
+    operation_id: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    query_params: list[dict[str, Any]] = Field(default_factory=list)
+    path_params: list[dict[str, Any]] = Field(default_factory=list)
+    request_body_schema: dict[str, Any] = Field(default_factory=dict)
+    response_schema: dict[str, Any] = Field(default_factory=dict)
+    auth_required: bool = False
+
+
+class EndpointDeleteResponse(BaseModel):
+    ok: bool
+    message: str
 
 
 class OpenApiDiscoveryResponse(BaseModel):

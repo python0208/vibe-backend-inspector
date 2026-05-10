@@ -77,6 +77,20 @@ export interface AITestSummary {
   risk_levels: Record<string, number>;
 }
 
+export interface ValidationRunSummary {
+  latest_run_id?: number | null;
+  name?: string | null;
+  status?: string | null;
+  total_count: number;
+  passed_count: number;
+  failed_count: number;
+  skipped_count: number;
+  warning_count: number;
+  pass_rate: number;
+  started_at?: string | null;
+  finished_at?: string | null;
+}
+
 export interface ReportIssue {
   severity: IssueSeverity | string;
   category: string;
@@ -106,6 +120,7 @@ export interface ReportSummary {
   test_summary: TestSummary;
   database_change_summary: DatabaseChangeSummary;
   ai_test_summary: AITestSummary;
+  validation_run_summary: ValidationRunSummary;
   issue_list: ReportIssue[];
   recommendation_list: ReportRecommendation[];
 }

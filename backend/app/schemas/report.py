@@ -84,6 +84,20 @@ class AITestSummary(BaseModel):
     risk_levels: dict[str, int] = Field(default_factory=dict)
 
 
+class ValidationRunSummary(BaseModel):
+    latest_run_id: int | None = None
+    name: str | None = None
+    status: str | None = None
+    total_count: int = 0
+    passed_count: int = 0
+    failed_count: int = 0
+    skipped_count: int = 0
+    warning_count: int = 0
+    pass_rate: float = 0
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
 class ReportIssue(BaseModel):
     severity: IssueSeverity
     category: str
@@ -113,6 +127,7 @@ class ReportSummaryRead(BaseModel):
     test_summary: TestSummary
     database_change_summary: DatabaseChangeSummary
     ai_test_summary: AITestSummary
+    validation_run_summary: ValidationRunSummary
     issue_list: list[ReportIssue] = Field(default_factory=list)
     recommendation_list: list[ReportRecommendation] = Field(default_factory=list)
 
